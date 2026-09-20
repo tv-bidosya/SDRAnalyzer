@@ -21,7 +21,7 @@ int main()
     const double freq2 = 5000.0;
     const double freq3 = 12000.0;
 
-    const double noiseLevel = 0.15;
+    const double noiseLevel = 3;
 
 
     // ==========================================
