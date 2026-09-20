@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="SDRAnalyzer.vcxproj" Id="c88d2c87-6b7a-47e0-a322-d07333c8f436" />
+</Solution>
