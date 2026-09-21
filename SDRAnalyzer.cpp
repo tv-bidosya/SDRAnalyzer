@@ -8,52 +8,45 @@
 
 constexpr double PI = 3.14159265358979323846;
 
-int main()
+struct DetectedSignal
 {
-    // ==========================================
-    // 1. НАСТРОЙКИ
-    // ==========================================
+    double frequency;
+    double levelDb;
+    double snrDb;
+};
 
-    const double sampleRate = 48000.0;
-    const int sampleCount = 4096;
+std::vector<double> generateSignal(
+    double sampleRate,
+    int sampleCount,
+    double freq1,
+    double freq2,
+    double freq3,
+    double noiseLevel
+)
+{
+    std::vector<double> signal =
+        generateSignal(
+            sampleRate,
+            sampleCount,
+            freq1,
+            freq2,
+            freq3,
+            noiseLevel
+        );
 
-    const double freq1 = 1000.0;
-    const double freq2 = 5000.0;
-    const double freq3 = 12000.0;
+    return signal;
+}
 
-    const double noiseLevel = 3;
+std::vector<double> calculateSpectrum(
+    const std::vector<double>& signal
+)
+{
+    const int sampleCount =
+        static_cast<int>(signal.size());
 
-
-    // ==========================================
-    // 2. ГЕНЕРАЦИЯ СИГНАЛА
-    // ==========================================
-
-    std::vector<double> signal(sampleCount);
-
-    std::mt19937 generator(42);
-
-    std::normal_distribution<double> noise(
-        0.0,
-        noiseLevel
+    std::vector<double> spectrum(
+        sampleCount / 2
     );
-
-    for (int n = 0; n < sampleCount; ++n)
-    {
-        double t = n / sampleRate;
-
-        signal[n] =
-            1.0 * std::sin(2.0 * PI * freq1 * t)
-            + 0.7 * std::sin(2.0 * PI * freq2 * t)
-            + 0.4 * std::sin(2.0 * PI * freq3 * t)
-            + noise(generator);
-    }
-
-
-    // ==========================================
-    // 3. DFT + HANN WINDOW
-    // ==========================================
-
-    std::vector<double> spectrum(sampleCount / 2);
 
     for (int k = 0; k < sampleCount / 2; ++k)
     {
@@ -69,7 +62,6 @@ int main()
                 std::sin(angle)
             );
 
-            // Hann window
             double window =
                 0.5 * (
                     1.0 -
@@ -88,7 +80,6 @@ int main()
         double magnitude =
             std::abs(sum);
 
-        // Нормализация для Hann
         double normalized =
             (4.0 * magnitude)
             / sampleCount;
@@ -97,11 +88,13 @@ int main()
             normalized;
     }
 
+    return spectrum;
+}
 
-    // ==========================================
-    // 4. ПЕРЕВОД СПЕКТРА В dB
-    // ==========================================
-
+std::vector<double> convertToDb(
+    const std::vector<double>& spectrum
+)
+{
     std::vector<double> spectrumDb(
         spectrum.size()
     );
@@ -115,15 +108,16 @@ int main()
             );
 
         spectrumDb[k] =
-            20.0
-            * std::log10(amplitude);
+            20.0 * std::log10(amplitude);
     }
 
+    return spectrumDb;
+}
 
-    // ==========================================
-    // 5. ОЦЕНКА NOISE FLOOR
-    // ==========================================
-
+double estimateNoiseFloor(
+    const std::vector<double>& spectrumDb
+)
+{
     std::vector<double> sortedDb =
         spectrumDb;
 
@@ -137,18 +131,82 @@ int main()
             sortedDb.size() / 2
         ];
 
-    double detectionThreshold =
-        noiseFloor + 15.0;
+    return noiseFloor;
+}
+std::vector<DetectedSignal> detectSignals(
+    const std::vector<double>& spectrumDb,
+    double sampleRate,
+    int sampleCount,
+    double noiseFloor,
+    double detectionThreshold
+)
 
+{
+    std::vector<DetectedSignal> detectedSignals;
 
-    // ==========================================
-    // 6. ВЫВОД СПЕКТРА
-    // ==========================================
+    for (
+        size_t k = 1;
+        k < spectrumDb.size() - 1;
+        ++k
+        )
+    {
+        bool localMaximum =
+            spectrumDb[k] > spectrumDb[k - 1]
+            &&
+            spectrumDb[k] > spectrumDb[k + 1];
 
+        bool aboveThreshold =
+            spectrumDb[k] > detectionThreshold;
+
+        if (
+            localMaximum
+            &&
+            aboveThreshold
+            )
+        {
+            double frequency =
+                k
+                * sampleRate
+                / sampleCount;
+
+            double snr =
+                spectrumDb[k]
+                - noiseFloor;
+
+            DetectedSignal detected;
+
+            detected.frequency =
+                frequency;
+
+            detected.levelDb =
+                spectrumDb[k];
+
+            detected.snrDb =
+                snr;
+
+            detectedSignals.push_back(
+                detected
+            );
+        }
+    }
+
+    return detectedSignals;
+}
+void printSpectrum(
+    const std::vector<double>& spectrum,
+    double sampleRate
+)
+{
     std::cout
         << "\n--- SPECTRUM ---\n\n";
 
+    const int sampleCount =
+        static_cast<int>(
+            spectrum.size() * 2
+            );
+
     const double bandWidthHz = 500.0;
+
     const double nyquist =
         sampleRate / 2.0;
 
@@ -175,10 +233,10 @@ int main()
                 / sampleRate
                 );
 
-        if (endBin > sampleCount / 2)
+        if (endBin > static_cast<int>(spectrum.size()))
         {
             endBin =
-                sampleCount / 2;
+                static_cast<int>(spectrum.size());
         }
 
         double maxAmplitude = 0.0;
@@ -190,10 +248,7 @@ int main()
             ++k
             )
         {
-            if (
-                spectrum[k]
-            > maxAmplitude
-                )
+            if (spectrum[k] > maxAmplitude)
             {
                 maxAmplitude =
                     spectrum[k];
@@ -249,7 +304,75 @@ int main()
 
         std::cout << '\n';
     }
+}
 
+int main()
+{
+    // ==========================================
+    // 1. НАСТРОЙКИ
+    // ==========================================
+
+    const double sampleRate = 48000.0;
+    const int sampleCount = 4096;
+
+    const double freq1 = 1000.0;
+    const double freq2 = 5000.0;
+    const double freq3 = 12000.0;
+
+    const double noiseLevel = 3;
+
+
+    // ==========================================
+    // 2. ГЕНЕРАЦИЯ СИГНАЛА
+    // ==========================================
+
+    std::vector<double> signal(sampleCount);
+
+    std::mt19937 generator(42);
+
+    std::normal_distribution<double> noise(
+        0.0,
+        noiseLevel
+    );
+
+    for (int n = 0; n < sampleCount; ++n)
+    {
+        double t = n / sampleRate;
+
+        signal[n] =
+            1.0 * std::sin(2.0 * PI * freq1 * t)
+            + 0.7 * std::sin(2.0 * PI * freq2 * t)
+            + 0.4 * std::sin(2.0 * PI * freq3 * t)
+            + noise(generator);
+    }  
+    std::vector<double> spectrum =
+        calculateSpectrum(signal);
+
+    // ==========================================
+    // 4. ПЕРЕВОД СПЕКТРА В dB
+    // ==========================================
+
+    std::vector<double> spectrumDb =
+        convertToDb(spectrum);
+
+
+    // ==========================================
+    // 5. ОЦЕНКА NOISE FLOOR
+    // ==========================================
+
+    double noiseFloor =
+        estimateNoiseFloor(
+            spectrumDb
+        );
+
+    double detectionThreshold =
+        noiseFloor + 15.0;
+
+
+    printSpectrum(
+        spectrum,
+        sampleRate
+    );
 
     // ==========================================
     // 7. NOISE FLOOR
@@ -272,55 +395,32 @@ int main()
     // 8. АВТОМАТИЧЕСКОЕ ОБНАРУЖЕНИЕ
     // ==========================================
 
+    std::vector<DetectedSignal> detectedSignals =
+        detectSignals(
+            spectrumDb,
+            sampleRate,
+            sampleCount,
+            noiseFloor,
+            detectionThreshold
+        );
     std::cout
         << "\n--- DETECTED SIGNALS ---\n";
 
     for (
-        size_t k = 1;
-        k < spectrumDb.size() - 1;
-        ++k
+        const DetectedSignal& detected
+        : detectedSignals
         )
     {
-        bool localMaximum =
-            spectrumDb[k]
-        > spectrumDb[k - 1]
-            &&
-            spectrumDb[k]
-            > spectrumDb[k + 1];
-
-        bool aboveThreshold =
-            spectrumDb[k]
-        > detectionThreshold;
-
-        if (
-            localMaximum
-            &&
-            aboveThreshold
-            )
-        {
-            double frequency =
-                k
-                * sampleRate
-                / sampleCount;
-
-            double snr =
-                spectrumDb[k]
-                - noiseFloor;
-
-            std::cout
-                << std::fixed
-                << std::setprecision(1)
-                << frequency
-                << " Hz"
-                << " | level = "
-                << spectrumDb[k]
-                << " dB"
-                << " | SNR = "
-                << snr
-                << " dB\n";
-        }
+        std::cout
+            << std::fixed
+            << std::setprecision(1)
+            << detected.frequency
+            << " Hz"
+            << " | level = "
+            << detected.levelDb
+            << " dB"
+            << " | SNR = "
+            << detected.snrDb
+            << " dB\n";
     }
-
-
-    return 0;
-}
+    }
