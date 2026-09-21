@@ -24,17 +24,30 @@ std::vector<double> generateSignal(
     double noiseLevel
 )
 {
-    std::vector<double> signal =
-        generateSignal(
-            sampleRate,
-            sampleCount,
-            freq1,
-            freq2,
-            freq3,
-            noiseLevel
-        );
+    std::vector<double> signal(sampleCount);
+
+    std::mt19937 generator(42);
+
+    std::normal_distribution<double> noise(
+        0.0,
+        noiseLevel
+    );
+
+    for (int n = 0; n < sampleCount; ++n)
+    {
+        double t =
+            n / sampleRate;
+
+        signal[n] =
+            1.0 * std::sin(2.0 * PI * freq1 * t)
+            + 0.7 * std::sin(2.0 * PI * freq2 * t)
+            + 0.4 * std::sin(2.0 * PI * freq3 * t)
+            + noise(generator);
+    }
 
     return signal;
+    
+ 
 }
 
 std::vector<double> calculateSpectrum(
@@ -330,6 +343,28 @@ void printDetectedSignals(
             << " dB\n";
     }
 }
+double calculateRms(
+    const double* data,
+    size_t count
+)
+{
+    if (data == nullptr || count == 0)
+    {
+        return 0.0;
+    }
+
+    double sumSquares = 0.0;
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        sumSquares +=
+            data[i] * data[i];
+    }
+
+    return std::sqrt(
+        sumSquares / count
+    );
+}
 int main()
 {
     // ==========================================
@@ -346,29 +381,21 @@ int main()
     const double noiseLevel = 3;
 
 
-    // ==========================================
-    // 2. ГЕНЕРАЦИЯ СИГНАЛА
-    // ==========================================
+    std::vector<double> signal =
+        generateSignal(
+            sampleRate,
+            sampleCount,
+            freq1,
+            freq2,
+            freq3,
+            noiseLevel
+        );
 
-    std::vector<double> signal(sampleCount);
-
-    std::mt19937 generator(42);
-
-    std::normal_distribution<double> noise(
-        0.0,
-        noiseLevel
-    );
-
-    for (int n = 0; n < sampleCount; ++n)
-    {
-        double t = n / sampleRate;
-
-        signal[n] =
-            1.0 * std::sin(2.0 * PI * freq1 * t)
-            + 0.7 * std::sin(2.0 * PI * freq2 * t)
-            + 0.4 * std::sin(2.0 * PI * freq3 * t)
-            + noise(generator);
-    }  
+    double rms =
+        calculateRms(
+            signal.data(),
+            signal.size()
+        );
     std::vector<double> spectrum =
         calculateSpectrum(signal);
 
@@ -430,4 +457,10 @@ int main()
     printDetectedSignals(
         detectedSignals
     );
+    std::cout
+        << "\nSignal RMS: "
+        << rms
+        << '\n';
+
+    return 0;
 }
