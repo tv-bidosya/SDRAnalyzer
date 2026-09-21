@@ -305,7 +305,31 @@ void printSpectrum(
         std::cout << '\n';
     }
 }
+void printDetectedSignals(
+    const std::vector<DetectedSignal>& detectedSignals
+)
+{
+    std::cout
+        << "\n--- DETECTED SIGNALS ---\n";
 
+    for (
+        const DetectedSignal& detected
+        : detectedSignals
+        )
+    {
+        std::cout
+            << std::fixed
+            << std::setprecision(1)
+            << detected.frequency
+            << " Hz"
+            << " | level = "
+            << detected.levelDb
+            << " dB"
+            << " | SNR = "
+            << detected.snrDb
+            << " dB\n";
+    }
+}
 int main()
 {
     // ==========================================
@@ -403,24 +427,7 @@ int main()
             noiseFloor,
             detectionThreshold
         );
-    std::cout
-        << "\n--- DETECTED SIGNALS ---\n";
-
-    for (
-        const DetectedSignal& detected
-        : detectedSignals
-        )
-    {
-        std::cout
-            << std::fixed
-            << std::setprecision(1)
-            << detected.frequency
-            << " Hz"
-            << " | level = "
-            << detected.levelDb
-            << " dB"
-            << " | SNR = "
-            << detected.snrDb
-            << " dB\n";
-    }
-    }
+    printDetectedSignals(
+        detectedSignals
+    );
+}
